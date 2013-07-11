@@ -27,6 +27,21 @@ var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
 
+var rest = require('restler');
+
+var restGet = function(url) {
+    rest.get(url).on('complete', function(result) {
+	if(result instanceof Error) {
+	    console.log('Restler error: ' + result.message);
+	    console.log('Please check url: ' + url + ' and try again');
+	    process.exit(1);
+	} else {
+	    var cheerioFile = cheerio.load(result);
+	    consoleOutput(cheerioFile);
+	}
+    });
+};
+
 var assertFileExists = function(infile) {
     var instr = infile.toString();
     if(!fs.existsSync(instr)) {
@@ -44,8 +59,13 @@ var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
+var checkForUrlOrFile = function(input) {
+    console.log(input);
+};
+
+
+var checkHtmlFile = function(cheeriohtmlfile, checksfile) {
+    $ = cheeriohtmlfile;
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
@@ -61,14 +81,31 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var consoleOutput = function(cheerioFile) {
+    var checkJson = checkHtmlFile(cheerioFile, program.checks);
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
+};
+
 if(require.main == module) {
     program
 	.option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-	.option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+	.option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists))
+	.option('-u, --url <url>', 'Url to html file')
 	.parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+    if(program.file){
+	var cheerioFile =  cheerioHtmlFile(program.file);
+	consoleOutput(cheerioFile);
+    }
+    else if(program.url) {
+	restGet(program.url);
+    }
+    else{
+	console.log('Please specify either a html file or an url');
+	process.exit(1);
+    }
+
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
